@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-zinc-200 dark:border-zinc-800;
+  }
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  ::selection {
+    @apply bg-sage-400/30;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium
+      transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2
+      focus-visible:ring-sage-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-sage-600 text-white hover:bg-sage-700 active:bg-sage-800;
+  }
+  .btn-secondary {
+    @apply btn bg-zinc-100 text-zinc-900 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100;
+  }
+  .btn-danger {
+    @apply btn bg-red-600/10 text-red-500 hover:bg-red-600/20;
+  }
+  .card {
+    @apply rounded-xl border border-zinc-200 bg-white shadow-subtle dark:border-zinc-800 dark:bg-zinc-900;
+  }
+  .input {
+    @apply w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900
+      placeholder:text-zinc-400 focus:border-sage-500 focus:outline-none focus:ring-1
+      focus:ring-sage-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100
+      dark:placeholder:text-zinc-500;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-medium text-zinc-500 dark:text-zinc-400;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium;
+  }
+}
+
+/* Slim, unobtrusive scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-zinc-300 dark:bg-zinc-700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
