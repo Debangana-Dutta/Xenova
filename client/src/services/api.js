@@ -19,6 +19,9 @@ export const authApi = {
   logout: () => api.post('/auth/logout'),
   getMe: () => api.get('/auth/me'),
   updateMe: (data) => api.put('/auth/me', data),
+  // New: requires the current password, so a stolen cookie alone can't
+  // take over the account by rotating the password.
+  changePassword: (data) => api.put('/auth/me/password', data),
 };
 
 // --- Finance -----------------------------------------------------------------

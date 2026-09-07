@@ -23,7 +23,7 @@ const emptyForm = {
 };
 
 const formatCurrency = (amount) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount || 0);
 
 const CATEGORY_STYLES = {
   Food: 'bg-sage-600/10 text-sage-700 dark:text-sage-400',
@@ -69,7 +69,6 @@ const Finance = () => {
 
   useEffect(() => {
     loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const resetForm = () => {
@@ -164,7 +163,6 @@ const Finance = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Quick add form */}
         <form onSubmit={handleSubmit} className="card space-y-3 p-5 lg:col-span-1">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
             {editingId ? 'Edit transaction' : 'Quick add transaction'}
@@ -247,11 +245,11 @@ const Finance = () => {
         </form>
 
         <div className="space-y-6 lg:col-span-2">
-          {/* Budget overview */}
           <div className="card p-5">
             <h2 className="mb-4 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
               Budget overview
             </h2>
+
             <div className="grid grid-cols-3 gap-4 text-center sm:text-left">
               <div>
                 <p className="text-xs text-zinc-500">Monthly budget</p>
@@ -259,28 +257,36 @@ const Finance = () => {
                   {formatCurrency(summary?.monthlyBudget)}
                 </p>
               </div>
+
               <div>
                 <p className="text-xs text-zinc-500">Total spent</p>
                 <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                   {formatCurrency(summary?.monthExpenses)}
                 </p>
               </div>
+
               <div>
                 <p className="text-xs text-zinc-500">Remaining</p>
                 <p
                   className={`text-lg font-semibold ${
-                    (summary?.remainingBudget || 0) < 0 ? 'text-red-500' : 'text-sage-600 dark:text-sage-400'
+                    (summary?.remainingBudget || 0) < 0
+                      ? 'text-red-500'
+                      : 'text-sage-600 dark:text-sage-400'
                   }`}
                 >
                   {formatCurrency(summary?.remainingBudget)}
                 </p>
               </div>
             </div>
+
             <div className="mt-4">
               <div className="mb-1 flex justify-between text-xs text-zinc-500">
                 <span>{budgetPercent}% used</span>
-                <span>{formatCurrency(summary?.monthExpenses)} / {formatCurrency(summary?.monthlyBudget)}</span>
+                <span>
+                  {formatCurrency(summary?.monthExpenses)} / {formatCurrency(summary?.monthlyBudget)}
+                </span>
               </div>
+
               <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
                 <div
                   className={`h-full rounded-full ${budgetColor} transition-all duration-500`}
@@ -290,10 +296,12 @@ const Finance = () => {
             </div>
           </div>
 
-          {/* Transaction table */}
           <div className="card p-5">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Transactions</h2>
+              <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                Transactions
+              </h2>
+
               <div className="flex flex-wrap gap-2">
                 <div className="relative">
                   <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
@@ -304,6 +312,7 @@ const Finance = () => {
                     className="input w-36 pl-8 text-xs"
                   />
                 </div>
+
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
@@ -313,6 +322,7 @@ const Finance = () => {
                   <option value="income">Income</option>
                   <option value="expense">Expense</option>
                 </select>
+
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
@@ -350,6 +360,7 @@ const Finance = () => {
                       <th className="pb-2 text-right font-medium">Actions</th>
                     </tr>
                   </thead>
+
                   <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                     {filteredTransactions.map((t) => (
                       <tr key={t._id}>
@@ -360,23 +371,34 @@ const Finance = () => {
                             ) : (
                               <ArrowDownCircle size={16} className="text-zinc-400" />
                             )}
-                            <span className="font-medium text-zinc-900 dark:text-zinc-100">{t.title}</span>
+
+                            <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                              {t.title}
+                            </span>
                           </div>
                         </td>
+
                         <td className="py-2.5">
                           <span className={`badge ${CATEGORY_STYLES[t.category] || CATEGORY_STYLES.Other}`}>
                             {t.category}
                           </span>
                         </td>
-                        <td className="py-2.5 text-zinc-500">{new Date(t.date).toLocaleDateString()}</td>
+
+                        <td className="py-2.5 text-zinc-500">
+                          {new Date(t.date).toLocaleDateString()}
+                        </td>
+
                         <td
                           className={`py-2.5 text-right font-semibold ${
-                            t.type === 'income' ? 'text-sage-600 dark:text-sage-400' : 'text-zinc-700 dark:text-zinc-300'
+                            t.type === 'income'
+                              ? 'text-sage-600 dark:text-sage-400'
+                              : 'text-zinc-700 dark:text-zinc-300'
                           }`}
                         >
                           {t.type === 'income' ? '+' : '-'}
                           {formatCurrency(t.amount)}
                         </td>
+
                         <td className="py-2.5">
                           <div className="flex justify-end gap-1">
                             <button
@@ -386,6 +408,7 @@ const Finance = () => {
                             >
                               <Pencil size={14} />
                             </button>
+
                             <button
                               onClick={() => setDeleteTarget(t)}
                               className="btn-ghost p-1.5 hover:text-red-500"
