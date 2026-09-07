@@ -1,336 +1,443 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Wallet,
-  Timer,
-  Flame,
-  CalendarClock,
-  Plus,
-  Play,
-  Trophy,
-  TrendingUp,
-  TrendingDown,
+  Search,
+  Pencil,
+  Trash2,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  Loader2,
 } from 'lucide-react';
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts';
-import { useAuth } from '../context/AuthContext';
-import { financeApi, productivityApi } from '../services/api';
+import { financeApi } from '../services/api';
+import { useToast } from '../context/ToastContext';
+import ConfirmDialog from '../components/ConfirmDialog';
 
-const CATEGORY_COLORS = {
-  Food: '#548a62',
-  Transport: '#dc8d20',
-  Books: '#74a780',
-  Entertainment: '#e6a638',
-  Shopping: '#9dc4a5',
-  Health: '#c06f18',
-  Education: '#3f6f4c',
-  Other: '#a1a1aa',
+const CATEGORIES = ['Food', 'Transport', 'Books', 'Entertainment', 'Shopping', 'Health', 'Education', 'Other'];
+
+const emptyForm = {
+  title: '',
+  amount: '',
+  type: 'expense',
+  category: 'Food',
+  date: new Date().toISOString().slice(0, 10),
+  description: '',
 };
 
 const formatCurrency = (amount) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount || 0);
 
-const StatCard = ({ icon: Icon, label, value, accent = 'sage', sub }) => (
-  <div className="card p-4">
-    <div className="flex items-center gap-2.5">
-      <div
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-          accent === 'sage'
-            ? 'bg-sage-600/10 text-sage-600 dark:text-sage-400'
-            : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-        }`}
-      >
-        <Icon size={18} />
-      </div>
-      <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{label}</p>
-    </div>
-    <p className="mt-3 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-      {value}
-    </p>
-    {sub && <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">{sub}</p>}
-  </div>
-);
+const CATEGORY_STYLES = {
+  Food: 'bg-sage-600/10 text-sage-700 dark:text-sage-400',
+  Transport: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+  Books: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+  Entertainment: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
+  Shopping: 'bg-pink-500/10 text-pink-600 dark:text-pink-400',
+  Health: 'bg-red-500/10 text-red-600 dark:text-red-400',
+  Education: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
+  Other: 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400',
+};
 
-const SkeletonCard = () => (
-  <div className="card p-4">
-    <div className="h-9 w-9 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
-    <div className="mt-3 h-6 w-24 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
-    <div className="mt-2 h-3 w-16 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
-  </div>
-);
-
-const Dashboard = () => {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [finance, setFinance] = useState(null);
-  const [productivity, setProductivity] = useState(null);
+const Finance = () => {
+  const toast = useToast();
+  const [summary, setSummary] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+
+  const loadAll = async () => {
+    setLoading(true);
+    try {
+      const [summaryRes, txRes] = await Promise.all([
+        financeApi.getSummary(),
+        financeApi.getTransactions(),
+      ]);
+      setSummary(summaryRes.data);
+      setTransactions(txRes.data.transactions);
+    } catch (error) {
+      toast.error('Could not load your finance data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [financeRes, productivityRes, txRes] = await Promise.all([
-          financeApi.getSummary(),
-          productivityApi.getSummary(),
-          financeApi.getTransactions(),
-        ]);
-        setFinance(financeRes.data);
-        setProductivity(productivityRes.data);
-        setTransactions(txRes.data.transactions.slice(0, 5));
-      } catch (error) {
-        console.error('Failed to load dashboard data', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+    loadAll();
   }, []);
 
-  const today = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  });
+  const resetForm = () => {
+    setForm(emptyForm);
+    setEditingId(null);
+  };
 
-  const focusHours = productivity ? (productivity.todaysFocusMinutes / 60).toFixed(1) : '0.0';
+  const handleChange = (e) => {
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
 
-  const pieData = finance?.spendingByCategory?.length
-    ? finance.spendingByCategory
-    : [{ category: 'No spending yet', total: 1 }];
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.title || !form.amount) {
+      toast.error('Please enter a title and an amount');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload = { ...form, amount: parseFloat(form.amount) };
+      if (editingId) {
+        const { data } = await financeApi.updateTransaction(editingId, payload);
+        setTransactions((prev) => prev.map((t) => (t._id === editingId ? data.transaction : t)));
+        toast.success('Transaction updated');
+      } else {
+        const { data } = await financeApi.createTransaction(payload);
+        setTransactions((prev) => [data.transaction, ...prev]);
+        toast.success('Transaction added');
+      }
+      resetForm();
+      const { data: summaryData } = await financeApi.getSummary();
+      setSummary(summaryData);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Something went wrong');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const startEdit = (t) => {
+    setEditingId(t._id);
+    setForm({
+      title: t.title,
+      amount: String(t.amount),
+      type: t.type,
+      category: t.category,
+      date: new Date(t.date).toISOString().slice(0, 10),
+      description: t.description || '',
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await financeApi.deleteTransaction(deleteTarget._id);
+      setTransactions((prev) => prev.filter((t) => t._id !== deleteTarget._id));
+      toast.success('Transaction deleted');
+      const { data: summaryData } = await financeApi.getSummary();
+      setSummary(summaryData);
+    } catch (error) {
+      toast.error('Could not delete transaction');
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((t) => {
+      if (typeFilter && t.type !== typeFilter) return false;
+      if (categoryFilter && t.category !== categoryFilter) return false;
+      if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    });
+  }, [transactions, typeFilter, categoryFilter, search]);
+
+  const budgetPercent = summary?.budgetUsagePercent || 0;
+  const budgetColor = budgetPercent >= 90 ? 'bg-red-500' : budgetPercent >= 70 ? 'bg-amber-500' : 'bg-sage-600';
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Good to see you, {user?.name?.split(' ')[0]}
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">{today}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => navigate('/finance')} className="btn-secondary">
-            <Plus size={16} /> Add transaction
-          </button>
-          <button onClick={() => navigate('/focus')} className="btn-secondary">
-            <Play size={16} /> Start focus session
-          </button>
-          <button onClick={() => navigate('/activities')} className="btn-primary">
-            <Trophy size={16} /> Add activity
-          </button>
-        </div>
-      </div>
-
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {loading ? (
-          <>
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </>
-        ) : (
-          <>
-            <StatCard
-              icon={Wallet}
-              label="Month's Balance"
-              value={formatCurrency((finance?.monthIncome || 0) - (finance?.monthExpenses || 0))}
-              sub={`${formatCurrency(finance?.monthExpenses)} spent this month`}
-            />
-            <StatCard
-              icon={Timer}
-              label="Daily Focus Hours"
-              value={`${focusHours}h`}
-              accent="amber"
-              sub={`${productivity?.todaysCompletedSessions || 0} sessions today`}
-            />
-            <StatCard
-              icon={Flame}
-              label="Current Streak"
-              value={`${productivity?.currentStreak || 0} days`}
-              accent="amber"
-              sub="Keep it going"
-            />
-            <StatCard
-              icon={CalendarClock}
-              label="Upcoming Activities"
-              value={productivity?.upcomingActivities?.length || 0}
-              sub="Planned & ongoing"
-            />
-          </>
-        )}
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+          Finance & Budget
+        </h1>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          Track every rupee coming in and going out
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Finance summary + chart */}
-        <div className="card p-5 lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-              Weekly spending
-            </h2>
-            <div className="flex items-center gap-4 text-xs text-zinc-500">
-              <span className="flex items-center gap-1">
-                <TrendingUp size={13} className="text-sage-600" /> Income{' '}
-                {formatCurrency(finance?.monthIncome)}
-              </span>
-              <span className="flex items-center gap-1">
-                <TrendingDown size={13} className="text-amber-600" /> Expenses{' '}
-                {formatCurrency(finance?.monthExpenses)}
-              </span>
+        <form onSubmit={handleSubmit} className="card space-y-3 p-5 lg:col-span-1">
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+            {editingId ? 'Edit transaction' : 'Quick add transaction'}
+          </h2>
+
+          <div>
+            <label className="label">Title</label>
+            <input
+              name="title"
+              value={form.title}
+              onChange={handleChange}
+              className="input"
+              placeholder="e.g. Grocery run"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Amount</label>
+              <input
+                name="amount"
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.amount}
+                onChange={handleChange}
+                className="input"
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <label className="label">Type</label>
+              <select name="type" value={form.type} onChange={handleChange} className="input">
+                <option value="expense">Expense</option>
+                <option value="income">Income</option>
+              </select>
             </div>
           </div>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={finance?.dailyTrend || []}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#3f3f4620" />
-                <XAxis
-                  dataKey="label"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 12, fill: '#71717a' }}
-                />
-                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#71717a' }} />
-                <Tooltip
-                  formatter={(value) => formatCurrency(value)}
-                  contentStyle={{
-                    background: '#18181b',
-                    border: '1px solid #27272a',
-                    borderRadius: 8,
-                    fontSize: 12,
-                    color: '#fafafa',
-                  }}
-                />
-                <Bar dataKey="amount" fill="#e6a638" radius={[4, 4, 0, 0]} maxBarSize={32} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
 
-        {/* Category breakdown */}
-        <div className="card p-5">
-          <h2 className="mb-4 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-            Spending by category
-          </h2>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  dataKey="total"
-                  nameKey="category"
-                  innerRadius={45}
-                  outerRadius={70}
-                  paddingAngle={2}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Category</label>
+              <select name="category" value={form.category} onChange={handleChange} className="input">
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Date</label>
+              <input name="date" type="date" value={form.date} onChange={handleChange} className="input" />
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Description (optional)</label>
+            <textarea
+              name="description"
+              value={form.description}
+              onChange={handleChange}
+              rows={2}
+              className="input resize-none"
+              placeholder="Add a note…"
+            />
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <button type="submit" className="btn-primary flex-1" disabled={submitting}>
+              {submitting && <Loader2 size={16} className="animate-spin" />}
+              {editingId ? 'Save changes' : 'Add transaction'}
+            </button>
+            {editingId && (
+              <button type="button" className="btn-secondary" onClick={resetForm}>
+                Cancel
+              </button>
+            )}
+          </div>
+        </form>
+
+        <div className="space-y-6 lg:col-span-2">
+          <div className="card p-5">
+            <h2 className="mb-4 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+              Budget overview
+            </h2>
+
+            <div className="grid grid-cols-3 gap-4 text-center sm:text-left">
+              <div>
+                <p className="text-xs text-zinc-500">Monthly budget</p>
+                <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                  {formatCurrency(summary?.monthlyBudget)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-zinc-500">Total spent</p>
+                <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                  {formatCurrency(summary?.monthExpenses)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-zinc-500">Remaining</p>
+                <p
+                  className={`text-lg font-semibold ${
+                    (summary?.remainingBudget || 0) < 0
+                      ? 'text-red-500'
+                      : 'text-sage-600 dark:text-sage-400'
+                  }`}
                 >
-                  {pieData.map((entry, index) => (
-                    <Cell
-                      key={index}
-                      fill={CATEGORY_COLORS[entry.category] || '#a1a1aa'}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => formatCurrency(value)} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5">
-            {(finance?.spendingByCategory || []).map((entry) => (
-              <span key={entry.category} className="flex items-center gap-1.5 text-xs text-zinc-500">
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ background: CATEGORY_COLORS[entry.category] || '#a1a1aa' }}
+                  {formatCurrency(summary?.remainingBudget)}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="mb-1 flex justify-between text-xs text-zinc-500">
+                <span>{budgetPercent}% used</span>
+                <span>
+                  {formatCurrency(summary?.monthExpenses)} / {formatCurrency(summary?.monthlyBudget)}
+                </span>
+              </div>
+
+              <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                <div
+                  className={`h-full rounded-full ${budgetColor} transition-all duration-500`}
+                  style={{ width: `${budgetPercent}%` }}
                 />
-                {entry.category}
-              </span>
-            ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-5">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                Transactions
+              </h2>
+
+              <div className="flex flex-wrap gap-2">
+                <div className="relative">
+                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search…"
+                    className="input w-36 pl-8 text-xs"
+                  />
+                </div>
+
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="input w-28 text-xs"
+                >
+                  <option value="">All types</option>
+                  <option value="income">Income</option>
+                  <option value="expense">Expense</option>
+                </select>
+
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="input w-32 text-xs"
+                >
+                  <option value="">All categories</option>
+                  {CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="space-y-2">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-10 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+                ))}
+              </div>
+            ) : filteredTransactions.length === 0 ? (
+              <div className="py-10 text-center">
+                <p className="text-sm text-zinc-400">No transactions match your filters yet.</p>
+              </div>
+            ) : (
+              <div className="-mx-5 overflow-x-auto px-5">
+                <table className="w-full min-w-[560px] text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800">
+                      <th className="pb-2 font-medium">Title</th>
+                      <th className="pb-2 font-medium">Category</th>
+                      <th className="pb-2 font-medium">Date</th>
+                      <th className="pb-2 text-right font-medium">Amount</th>
+                      <th className="pb-2 text-right font-medium">Actions</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                    {filteredTransactions.map((t) => (
+                      <tr key={t._id}>
+                        <td className="py-2.5">
+                          <div className="flex items-center gap-2">
+                            {t.type === 'income' ? (
+                              <ArrowUpCircle size={16} className="text-sage-600 dark:text-sage-400" />
+                            ) : (
+                              <ArrowDownCircle size={16} className="text-zinc-400" />
+                            )}
+
+                            <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                              {t.title}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="py-2.5">
+                          <span className={`badge ${CATEGORY_STYLES[t.category] || CATEGORY_STYLES.Other}`}>
+                            {t.category}
+                          </span>
+                        </td>
+
+                        <td className="py-2.5 text-zinc-500">
+                          {new Date(t.date).toLocaleDateString()}
+                        </td>
+
+                        <td
+                          className={`py-2.5 text-right font-semibold ${
+                            t.type === 'income'
+                              ? 'text-sage-600 dark:text-sage-400'
+                              : 'text-zinc-700 dark:text-zinc-300'
+                          }`}
+                        >
+                          {t.type === 'income' ? '+' : '-'}
+                          {formatCurrency(t.amount)}
+                        </td>
+
+                        <td className="py-2.5">
+                          <div className="flex justify-end gap-1">
+                            <button
+                              onClick={() => startEdit(t)}
+                              className="btn-ghost p-1.5"
+                              aria-label="Edit transaction"
+                            >
+                              <Pencil size={14} />
+                            </button>
+
+                            <button
+                              onClick={() => setDeleteTarget(t)}
+                              className="btn-ghost p-1.5 hover:text-red-500"
+                              aria-label="Delete transaction"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Recent transactions */}
-        <div className="card p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-              Recent transactions
-            </h2>
-            <button onClick={() => navigate('/finance')} className="text-xs font-medium text-sage-600 hover:underline dark:text-sage-400">
-              View all
-            </button>
-          </div>
-          {transactions.length === 0 ? (
-            <p className="py-6 text-center text-sm text-zinc-400">No transactions yet. Add your first one.</p>
-          ) : (
-            <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {transactions.map((t) => (
-                <li key={t._id} className="flex items-center justify-between py-2.5">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                      {t.title}
-                    </p>
-                    <p className="text-xs text-zinc-500">
-                      {t.category} · {new Date(t.date).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <span
-                    className={`text-sm font-semibold ${
-                      t.type === 'income' ? 'text-sage-600 dark:text-sage-400' : 'text-zinc-500'
-                    }`}
-                  >
-                    {t.type === 'income' ? '+' : '-'}
-                    {formatCurrency(t.amount)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* Upcoming activities */}
-        <div className="card p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-              Upcoming activities
-            </h2>
-            <button onClick={() => navigate('/activities')} className="text-xs font-medium text-sage-600 hover:underline dark:text-sage-400">
-              View all
-            </button>
-          </div>
-          {!productivity?.upcomingActivities?.length ? (
-            <p className="py-6 text-center text-sm text-zinc-400">Nothing scheduled. Plan your next activity.</p>
-          ) : (
-            <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {productivity.upcomingActivities.map((a) => (
-                <li key={a._id} className="flex items-center justify-between py-2.5">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                      {a.title}
-                    </p>
-                    <p className="text-xs text-zinc-500">{a.activityType}</p>
-                  </div>
-                  <span className="text-xs text-zinc-500">
-                    {new Date(a.date).toLocaleDateString()}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete transaction?"
+        message={`This will permanently remove "${deleteTarget?.title}". This can't be undone.`}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+      />
     </div>
   );
 };
 
-export default Dashboard;
+export default Finance;
